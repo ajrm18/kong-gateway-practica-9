@@ -1,0 +1,11 @@
+$ curl.exe -i http://localhost:3000/api/v1/productos
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+Content-Type: application/json; charset=utf-8
+Content-Length: 401
+ETag: W/"191-YXIZ0DFrDar/o4O6st1wCuenB58"
+Date: Sun, 15 Nov 2026 20:18:45 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+[{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null},{"id":3,"nombre":"Mouse inalámbrico","precio":60,"categoria":null},{"id":4,"nombre":"Monitor 24 pulgadas","precio":189,"categoria":null},{"id":5,"nombre":"Auriculares","precio":10,"categoria":null},{"id":6,"nombre":"Auriculares","precio":10,"categoria":null},{"id":7,"nombre":"Laptop","precio":899.99,"categoria":"electronica"}]
