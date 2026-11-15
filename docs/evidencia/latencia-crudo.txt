@@ -1,0 +1,44 @@
+# Medicion de latencia: 20 GET /productos/1 directo (3000) y 20 via Kong (8000), curl.exe -w time_total
+# Via Kong se envian 5 por ventana de minuto (minute: 5) para no medir respuestas 429.
+# fecha_utc: 2026-11-15 21:10:26
+directo 1 200 0.064912
+directo 2 200 0.016487
+directo 3 200 0.070586
+directo 4 200 0.010983
+directo 5 200 0.020304
+directo 6 200 0.020905
+directo 7 200 0.011852
+directo 8 200 0.020026
+directo 9 200 0.018142
+directo 10 200 0.008512
+directo 11 200 0.055223
+directo 12 200 0.008629
+directo 13 200 0.008102
+directo 14 200 0.023427
+directo 15 200 0.046032
+directo 16 200 0.033823
+directo 17 200 0.031630
+directo 18 200 0.015881
+directo 19 200 0.036588
+directo 20 200 0.014828
+kong 1 200 0.705068 proxy_ms=78 upstream_ms=420
+kong 2 200 0.198776 proxy_ms=24 upstream_ms=50
+kong 3 200 0.160341 proxy_ms=8 upstream_ms=81
+kong 4 200 0.140713 proxy_ms=4 upstream_ms=79
+kong 5 200 0.034342 proxy_ms=3 upstream_ms=10
+kong 6 200 18.187469 proxy_ms=1146 upstream_ms=2880
+kong 7 200 0.691217 proxy_ms=315 upstream_ms=174
+kong 8 200 0.396466 proxy_ms=29 upstream_ms=162
+kong 9 200 0.062634 proxy_ms=4 upstream_ms=34
+kong 10 200 0.202522 proxy_ms=6 upstream_ms=90
+kong 11 200 1.269462 proxy_ms=90 upstream_ms=1016
+kong 12 200 0.048763 proxy_ms=5 upstream_ms=13
+kong 13 200 0.177663 proxy_ms=7 upstream_ms=108
+kong 14 200 0.174715 proxy_ms=7 upstream_ms=23
+kong 15 200 0.213202 proxy_ms=45 upstream_ms=17
+kong 16 200 0.133126 proxy_ms=10 upstream_ms=108
+kong 17 200 0.039770 proxy_ms=1 upstream_ms=9
+kong 18 200 0.185144 proxy_ms=3 upstream_ms=7
+kong 19 200 0.030205 proxy_ms=3 upstream_ms=6
+kong 20 200 0.081083 proxy_ms=13 upstream_ms=19
+fin

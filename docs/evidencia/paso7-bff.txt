@@ -125,3 +125,15 @@ HTTP/1.1 200 OK
 {"id":1,"nombre":"Teclado mecánico RGB","precio":55,"graphql":null,"fuentes":{"rest":"ok","graphql":"no-disponible"},"fuente":"aggregator","correlationId":"kong-generado"
 # /productos/1 trae X-RateLimit-* (plugin de productos-service); /productos-completos/1 no los trae y responde el BFF ("fuente":"aggregator").
 # Kong ordena las routes por longitud de prefijo: /productos-completos (19) gana a /productos (10).
+
+===== Log de la API REST durante los puntos 1 a 6 (X-Correlation-Id reenviado por el BFF) =====
+# Extraido de la salida de npm run start:dev de nestjs-productos-api (15/11/2026 16:01-16:07).
+[Nest] 16924  - 15/11/2026, 16:01:10     LOG [CorrelationId] GET /api/v1/productos/1 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:01:12     LOG [CorrelationId] GET /api/v1/productos/1 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:01:13     LOG [CorrelationId] GET /api/v1/productos/999 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:03:21     LOG [CorrelationId] GET /api/v1/productos/4 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:03:23     LOG [CorrelationId] GET /api/v1/productos X-Correlation-Id=(sin header)
+[Nest] 16924  - 15/11/2026, 16:05:06     LOG [CorrelationId] GET /api/v1/productos/1 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:07:32     LOG [CorrelationId] GET /api/v1/productos/1 X-Correlation-Id=kong-generado
+[Nest] 16924  - 15/11/2026, 16:07:33     LOG [CorrelationId] GET /api/v1/productos/1 X-Correlation-Id=kong-generado
+# La linea "(sin header)" de las 16:03:23 es la llamada del graphql-simulado.js a la API (no reenvia el header); todas las del BFF llevan kong-generado.
