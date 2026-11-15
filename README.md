@@ -21,7 +21,7 @@ Poner **Kong Gateway 3.6 en modo DB-less** (configuración declarativa en YAML) 
 | BFF directo (`/health`) | https://bff-productos-p9.onrender.com/health |
 | Swagger de la API de Productos | https://apisemana2.onrender.com/api/docs |
 | Estado del CI | https://github.com/ajrm18/kong-gateway-practica-9/actions/workflows/ci.yml (en verde: jobs `bff` y `kong`, este último con la prueba real del 429) |
-| Auditoría | [`Auditoria_Practica9.md`](Auditoria_Practica9.md): 0 críticos, 0 altos, 4 medios, 10 bajos, 7 informativos |
+| Auditoría | [`Auditoria_Practica9.md`](Auditoria_Practica9.md): 0 críticos, 0 altos, 4 medios (P9-02 ya corregido), 10 bajos, 7 informativos |
 
 > **Render Free duerme los servicios tras 15 minutos sin tráfico.** Antes de la demo hay que abrir, en este orden, https://apisemana2.onrender.com/api/v1/health, https://bff-productos-p9.onrender.com/health y https://kong-gateway-p9.onrender.com/kong-health, y esperar a que respondan (puede tardar 1 minuto cada uno). El BFF usa un timeout de 8 s por fuente: si la API REST todavía está despertando, la primera llamada a `/productos-completos/:id` puede devolver 502; la segunda ya responde.
 
@@ -168,7 +168,7 @@ El valor fijo no permite distinguir una petición de otra, y `request-transforme
 
 ## Auditoría
 
-[`Auditoria_Practica9.md`](Auditoria_Practica9.md), sobre clones limpios de `82f4df7` y `apisemana2@aab0a63`. Hallazgos Medios: bypass del Gateway por las URLs públicas de Render (P9-01), el script de rate-limit acepta un 429 de Cloudflare (P9-02), el GraphQL público no entrega datos (P9-03) y `/productos-completos` sin rate-limit (P9-04).
+[`Auditoria_Practica9.md`](Auditoria_Practica9.md), sobre clones limpios de `82f4df7` y `apisemana2@aab0a63`. Hallazgos Medios: bypass del Gateway por las URLs públicas de Render (P9-01), el script de rate-limit aceptaba un 429 de Cloudflare (P9-02, **corregido en `298ba53`**), el GraphQL público no entrega datos (P9-03) y `/productos-completos` sin rate-limit (P9-04).
 
 ## Declaración de uso de IA
 

@@ -172,6 +172,7 @@ GET /productos-completos/3 -> <!DOCTYPE html>...<title>Just a moment...</title>.
 - **Causa**: el script solo compara el código HTTP. No comprueba que las primeras peticiones sean 200 ni que el 429 venga de Kong.
 - **Impacto**: la evidencia central de la semana puede ser un falso positivo: un 429 de Cloudflare, de Render o de cualquier proxy intermedio se reporta como "Kong devolvió 429", y el CI pasaría aunque el plugin dejara de funcionar si otra capa respondiera 429. Los falsos negativos sí los detecta (con `X-Forwarded-For`, antes de la corrección de P9-16, reportó correctamente que no hubo 429).
 - **Recomendación**: dar el resultado OK solo si las peticiones 1 a N-1 son 200 y la N.ª es 429 **con** el cuerpo `API rate limit exceeded` y la cabecera `X-RateLimit-Limit-Minute: 5`. Si el 429 llega sin ellos, informar "429 de otro proxy (Cloudflare/Render)" y salir con código 2. Para la demo en la nube, no lanzar muchas pruebas seguidas desde la misma IP.
+- **Estado**: **corregido tras la auditoría** en el commit `298ba53` (ver sección 12).
 
 #### P9-03 - La API GraphQL pública no entrega datos: el reto solo se ve con `graphql: "no-disponible"` (salvo con el GraphQL simulado)
 
@@ -419,7 +420,7 @@ sequenceDiagram
 | En la demo | `.\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com -SslNoRevoke` una sola vez al inicio de un minuto; comprobar en la 6.ª el cuerpo `API rate limit exceeded` (no la página de Cloudflare, P9-02) |
 | En la demo | https://kong-gateway-p9.onrender.com/productos-completos/3 (no `/1`, P9-12) |
 | En local antes de levantar todo | `netstat -ano \| findstr ":3000 :3001"` vacío (P9-20) |
-| Tras corregir P9-02 | Forzar un 429 que no sea de Kong (por ejemplo, un servidor que responda 429 sin `X-RateLimit-*`): el script debe salir con código distinto de 0 |
+| Tras corregir P9-02 (hecho, `298ba53`) | Forzar un 429 que no sea de Kong (por ejemplo, un servidor que responda 429 sin `X-RateLimit-*`): el script debe salir con código 2. Ya comprobado con un servidor simulado (sección 12); repetir si se modifica el script |
 | Tras corregir P9-01 / P9-04 | `curl https://apisemana2.onrender.com/api/v1/productos` sin el secreto → 403; `/productos-completos` vía Kong → 429 al superar su límite |
 | Tras corregir P9-05 | `tls_verify: true` + `ca_certificates`: `/productos/3` → 200 y ningún `upstream SSL certificate verify error` en el log de Kong |
 | Tras corregir el GraphQL (P9-03) | `/productos-completos/3` → `fuentes.graphql: "ok"` y `graphql.coincide: true` en la nube |
@@ -478,14 +479,43 @@ La Práctica 9 está **completa y funcionando**, en local y en la nube. Kong 3.6
 
 El BFF llega a la auditoría con lint estricto, 35 pruebas, `npm ci` limpio, `npm audit --omit=dev` en 0, helmet, timeouts de 8 s, ningún 500 en ninguna prueba y degradación correcta cuando GraphQL falla. De los 21 fallos recurrentes, 18 quedan prevenidos, 2 lo están en parte (con hallazgos Bajos) y 1 no aplica.
 
-No hay hallazgos Críticos ni Altos, así que **no se aplicó ninguna corrección de código tras la auditoría**. Los 4 de severidad Media son: el bypass del Gateway por las URLs públicas de Render (P9-01); el script de rate-limit, que acepta como de Kong un 429 de Cloudflare (P9-02); la API GraphQL pública, que no entrega datos por su URL REST fija a otro despliegue (P9-03); y la route del BFF sin límite, que amplifica las llamadas (P9-04).
+No hay hallazgos Críticos ni Altos. Aun así, a pedido del estudiante, **se corrigió P9-02 tras la auditoría** (commit `298ba53`, sección 12). Los 4 de severidad Media son: el bypass del Gateway por las URLs públicas de Render (P9-01); el script de rate-limit, que acepta como de Kong un 429 de Cloudflare (P9-02); la API GraphQL pública, que no entrega datos por su URL REST fija a otro despliegue (P9-03); y la route del BFF sin límite, que amplifica las llamadas (P9-04).
 
 Acciones recomendadas, por prioridad:
 
-1. **P9-02**: validar en los dos scripts el cuerpo `API rate limit exceeded` y la cabecera `X-RateLimit-Limit-Minute`, no solo el código 429.
+1. ~~**P9-02**: validar en los dos scripts el cuerpo `API rate limit exceeded` y la cabecera `X-RateLimit-Limit-Minute`, no solo el código 429.~~ Hecho en `298ba53`.
 2. **P9-01 + P9-04**: secreto compartido Kong → API/BFF (o private services) y `rate-limiting` también en `bff-productos-service`.
 3. **P9-03**: en el repo de GraphQL, leer la URL REST de una variable apuntando a `apisemana2` y redesplegar.
 4. **P9-05 y P9-10**: `ca_certificates` + `tls_verify: true` en Kong; `rejectUnauthorized: true` hacia Neon.
 5. **P9-11, P9-12 y P9-08**: quitar `container_name`, usar el id 3 en la demo y despertar los servicios antes.
 6. **P9-06 / P9-07**: plugin `correlation-id` con UUID; `policy: redis` si algún día hay réplicas.
 7. Antes de entregar: escribir en `BITACORA.md` las reflexiones de las secciones 3, 4 y 5, y completar "Qué se modificó/verificó manualmente" en la declaración de IA.
+
+## 12. Correcciones aplicadas tras la auditoría
+
+La auditoría (secciones 1 a 11) describe el estado `82f4df7`. Después de cerrarla, el estudiante pidió corregir P9-02, aunque es de severidad Media.
+
+| Hallazgo | Commit | Cambio | Verificación |
+|---|---|---|---|
+| P9-02 | `298ba53` (`298ba537f2498bebdea46d7c38723187c16fbc4f`) "fix: los scripts de rate-limit exigen el 429 de Kong (cuerpo API rate limit exceeded y X-RateLimit-Limit-Minute), no cualquier 429 (P9-02)" | `scripts/probar-rate-limit.sh` y `scripts/probar-rate-limit.ps1`: devuelven OK (código 0) solo si las primeras N-1 peticiones son 200 y la N.ª es 429 **con** el cuerpo `API rate limit exceeded` **y** la cabecera `X-RateLimit-Limit-Minute`. Un 429 sin ellos sale con código 2 ("429 de otro proxy (Cloudflare/Render)"). Si alguna previa no es 200, o no hay 429, sale con código 1 | Ver abajo; evidencia en `docs/evidencia/correccion-p9-02.txt` |
+
+Verificación de la corrección:
+
+```text
+Servidor simulado (node), 6 casos:
+cloudflare/sh  -> exit 2 | RESULTADO: 429 de otro proxy (Cloudflare/Render), no de Kong ...
+cloudflare/ps1 -> exit 2 | RESULTADO: 429 de otro proxy (Cloudflare/Render), no de Kong ...
+kong/sh        -> exit 0 | RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+kong/ps1       -> exit 0 | RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+siempre200/sh  -> exit 1 | RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+siempre200/ps1 -> exit 1 | RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+
+Kong real en Render (2026-11-15 23:21 UTC), .ps1 corregido:
+Peticion 1..5: 200 | Peticion 6: 429, x-ratelimit-limit-minute: 5, "message":"API rate limit exceeded"
+RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6   (exit=0)
+
+GitHub Actions, run 43774363436 (298ba53): success; job kong con el .sh corregido contra Kong real:
+RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+```
+
+Severidades tras la corrección: Crítica 0, Alta 0, **Media 3 abiertas** (P9-01, P9-03, P9-04) + 1 corregida (P9-02), Baja 10, Informativa 7.
