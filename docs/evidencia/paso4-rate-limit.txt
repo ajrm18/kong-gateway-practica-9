@@ -1,0 +1,68 @@
+# Paso 4: rate-limiting minute: 5, policy: local (Kong reiniciado justo antes para resetear el contador)
+# Fecha UTC de la prueba: 2026-11-15 20:28:03
+$ ./scripts/probar-rate-limit.sh http://localhost:8000
+URL: http://localhost:8000/productos  (peticiones: 6)
+Peticion 1: 200
+Peticion 2: 200
+Peticion 3: 200
+Peticion 4: 200
+Peticion 5: 200
+Peticion 6: 429
+
+Peticion 6 completa (curl -i):
+HTTP/1.1 429 Too Many Requests
+Date: Sun, 15 Nov 2026 20:28:07 GMT
+Content-Type: application/json; charset=utf-8
+Connection: keep-alive
+RateLimit-Reset: 53
+Retry-After: 53
+X-RateLimit-Remaining-Minute: 0
+X-RateLimit-Limit-Minute: 5
+RateLimit-Remaining: 0
+RateLimit-Limit: 5
+Content-Length: 92
+X-Kong-Response-Latency: 1
+Server: kong/3.6.1
+X-Kong-Request-Id: ac1e40167a12bb41f8c9470aa3039012
+
+{
+  "message":"API rate limit exceeded",
+  "request_id":"ac1e40167a12bb41f8c9470aa3039012"
+}
+
+RESULTADO: OK, Kong devolvio 429 en la peticion 6
+(codigo de salida del script: 0)
+
+# ---- Misma prueba con PowerShell (minuto siguiente, contador nuevo de la ventana) ----
+PS> .\scripts\probar-rate-limit.ps1 -BaseUrl http://localhost:8000
+URL: http://localhost:8000/productos  (peticiones: 6)
+Peticion 1: 200
+Peticion 2: 200
+Peticion 3: 200
+Peticion 4: 200
+Peticion 5: 200
+Peticion 6: 429
+
+Peticion 6 completa (curl.exe -i):
+HTTP/1.1 429 Too Many Requests
+Date: Sun, 15 Nov 2026 20:29:04 GMT
+Content-Type: application/json; charset=utf-8
+Connection: keep-alive
+RateLimit-Reset: 56
+Retry-After: 56
+X-RateLimit-Remaining-Minute: 0
+X-RateLimit-Limit-Minute: 5
+RateLimit-Remaining: 0
+RateLimit-Limit: 5
+Content-Length: 92
+X-Kong-Response-Latency: 1
+Server: kong/3.6.1
+X-Kong-Request-Id: 34d4c92520ffb07ab651b617f97ca943
+
+{
+  "message":"API rate limit exceeded",
+  "request_id":"34d4c92520ffb07ab651b617f97ca943"
+}
+
+RESULTADO: OK, Kong devolvio 429 en la peticion 6
+(codigo de salida del script: 0)
