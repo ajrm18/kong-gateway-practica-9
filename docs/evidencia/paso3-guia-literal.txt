@@ -1,0 +1,73 @@
+# Paso 3 con el kong.yml LITERAL de la guia
+# url: http://host.docker.internal:3000 | paths: [/productos] | strip_path no declarado (por defecto true)
+
+_format_version: "3.0"
+
+services:
+  - name: productos-service
+    url: http://host.docker.internal:3000
+    routes:
+      - name: productos-route
+        paths:
+          - /productos
+
+$ curl.exe -s http://localhost:8001/routes  -> strip_path efectivo:
+"strip_path":true,
+
+$ curl.exe -i http://localhost:8000/productos
+HTTP/1.1 404 Not Found
+Content-Type: text/html; charset=utf-8
+Content-Length: 139
+Connection: keep-alive
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src 'none'
+Date: Sun, 15 Nov 2026 20:23:33 GMT
+X-Kong-Upstream-Latency: 1095
+X-Kong-Proxy-Latency: 3
+Via: kong/3.6.1
+X-Kong-Request-Id: b6f909571cd09b1e5aba3b782bc95302
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /</pre>
+</body>
+</html>
+
+
+$ curl.exe -i http://localhost:8000/productos/1
+HTTP/1.1 404 Not Found
+Content-Type: text/html; charset=utf-8
+Content-Length: 140
+Connection: keep-alive
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src 'none'
+Date: Sun, 15 Nov 2026 20:23:35 GMT
+X-Kong-Upstream-Latency: 50
+X-Kong-Proxy-Latency: 1
+Via: kong/3.6.1
+X-Kong-Request-Id: 98cff50af160316ea1a28549c4a8d17e
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /1</pre>
+</body>
+</html>
+
+
+# Log de Kong (ruta que llego al upstream):
+kong-gateway  | 172.19.0.1 - - [15/Nov/2026:20:23:33 +0000] "GET /productos HTTP/1.1" 404 139 "-" "curl/8.22.0" kong_request_id: "b6f909571cd09b1e5aba3b782bc95302"
+kong-gateway  | 172.19.0.1 - - [15/Nov/2026:20:23:35 +0000] "GET /productos/1 HTTP/1.1" 404 140 "-" "curl/8.22.0" kong_request_id: "98cff50af160316ea1a28549c4a8d17e"
+
+# Conclusion: el cuerpo "Cannot GET /" y "Cannot GET /1" lo genera Express en la API y muestra la ruta que
+# le llego: Kong quito "/productos" (strip_path=true por defecto). Aunque no lo quitara, la API real esta en
+# /api/v1/productos, asi que la url del service necesita el prefijo /api/v1 y la route strip_path: false.

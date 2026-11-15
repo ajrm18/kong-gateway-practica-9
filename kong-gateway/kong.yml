@@ -1,2 +1,12 @@
 _format_version: "3.0"
-services: []
+
+services:
+  - name: productos-service
+    # Correccion de la guia: la API usa setGlobalPrefix('api/v1'), por eso la url incluye /api/v1.
+    url: http://host.docker.internal:3000/api/v1
+    routes:
+      - name: productos-route
+        paths:
+          - /productos
+        # Correccion de la guia: strip_path es true por defecto y Kong reenviaria "/productos" como "/".
+        strip_path: false

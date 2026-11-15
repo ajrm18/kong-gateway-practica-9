@@ -1,0 +1,83 @@
+# Paso 3 (Pasos 2 y 3 de la guia) con el kong.yml CORREGIDO
+_format_version: "3.0"
+
+services:
+  - name: productos-service
+    # Correccion de la guia: la API usa setGlobalPrefix('api/v1'), por eso la url incluye /api/v1.
+    url: http://host.docker.internal:3000/api/v1
+    routes:
+      - name: productos-route
+        paths:
+          - /productos
+        # Correccion de la guia: strip_path es true por defecto y Kong reenviaria "/productos" como "/".
+        strip_path: false
+
+$ docker compose exec kong kong config parse /kong/kong.yml
+parse successful
+
+===== DIRECTO a la API (3000) =====
+$ curl.exe -i http://localhost:3000/api/v1/productos
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+Content-Type: application/json; charset=utf-8
+Content-Length: 401
+ETag: W/"191-YXIZ0DFrDar/o4O6st1wCuenB58"
+Date: Sun, 15 Nov 2026 20:25:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+[{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null},{"id":3,"nombre":"Mouse inalámbrico","precio":60,"categoria":null},{"id":4,"nombre":"Monitor 24 pulgadas","precio":189,"categoria":null},{"id":5,"nombre":"Auriculares","precio":10,"categoria":null},{"id":6,"nombre":"Auriculares","precio":10,"categoria":null},{"id":7,"nombre":"Laptop","precio":899.99,"categoria":"electronica"}]
+
+$ curl.exe -i http://localhost:3000/api/v1/productos/1
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+Content-Type: application/json; charset=utf-8
+Content-Length: 70
+ETag: W/"46-TvRHjNr/r+C+DDJyOXVnAVSBD2E"
+Date: Sun, 15 Nov 2026 20:25:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null}
+
+===== VIA KONG (8000) =====
+$ curl.exe -i http://localhost:8000/productos
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 401
+Connection: keep-alive
+X-Content-Type-Options: nosniff
+ETag: W/"191-YXIZ0DFrDar/o4O6st1wCuenB58"
+Date: Sun, 15 Nov 2026 20:25:07 GMT
+X-Kong-Upstream-Latency: 141
+X-Kong-Proxy-Latency: 2
+Via: kong/3.6.1
+X-Kong-Request-Id: 2cbb0d51089a623454fdfd4be1e00870
+
+[{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null},{"id":3,"nombre":"Mouse inalámbrico","precio":60,"categoria":null},{"id":4,"nombre":"Monitor 24 pulgadas","precio":189,"categoria":null},{"id":5,"nombre":"Auriculares","precio":10,"categoria":null},{"id":6,"nombre":"Auriculares","precio":10,"categoria":null},{"id":7,"nombre":"Laptop","precio":899.99,"categoria":"electronica"}]
+
+$ curl.exe -i http://localhost:8000/productos/1
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 70
+Connection: keep-alive
+X-Content-Type-Options: nosniff
+ETag: W/"46-TvRHjNr/r+C+DDJyOXVnAVSBD2E"
+Date: Sun, 15 Nov 2026 20:25:07 GMT
+X-Kong-Upstream-Latency: 29
+X-Kong-Proxy-Latency: 0
+Via: kong/3.6.1
+X-Kong-Request-Id: a364223f5350ce2e6f17a97688ab564e
+
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null}
+
+===== Comparacion de cuerpos =====
+GET /productos: cuerpo identico directo vs Kong
+GET /productos/1: cuerpo identico directo vs Kong
+
+===== Admin API =====
+$ curl.exe -s http://localhost:8001/services
+{"next":null,"data":[{"retries":5,"tags":null,"ca_certificates":null,"port":3000,"id":"c500e461-9869-5f1d-a074-a899ee3ae08c","tls_verify":null,"client_certificate":null,"tls_verify_depth":null,"created_at":1794774275,"updated_at":1794774275,"connect_timeout":60000,"read_timeout":60000,"name":"productos-service","protocol":"http","enabled":true,"write_timeout":60000,"path":"/api/v1","host":"host.docker.internal"}]}
+
+$ curl.exe -s http://localhost:8001/routes
+{"next":null,"data":[{"service":{"id":"c500e461-9869-5f1d-a074-a899ee3ae08c"},"snis":null,"tags":null,"protocols":["http","https"],"id":"6b31e4a0-4f13-5265-9ede-5427e5bd5923","hosts":null,"https_redirect_status_code":426,"path_handling":"v0","regex_priority":0,"updated_at":1794774275,"methods":null,"headers":null,"preserve_host":false,"request_buffering":true,"name":"productos-route","strip_path":false,"sources":null,"response_buffering":true,"paths":["/productos"],"created_at":1794774275,"destinations":null}]}
