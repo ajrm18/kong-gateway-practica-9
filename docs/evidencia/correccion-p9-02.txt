@@ -1,0 +1,34 @@
+# Correccion de P9-02 (auditoria): probar-rate-limit.sh / .ps1 ya no aceptan cualquier 429.
+# Ahora: OK (0) solo si las primeras N-1 son 200 y la N.a es 429 con el cuerpo "API rate limit exceeded"
+# y la cabecera X-RateLimit-Limit-Minute; 429 sin ellos -> codigo 2 ("429 de otro proxy"); resto -> 1.
+# Fecha: 15/11/2026.
+
+===== 1) Servidor simulado local (node), los dos scripts =====
+cloudflare/sh  -> exit 2 | RESULTADO: 429 de otro proxy (Cloudflare/Render), no de Kong: falta 'API rate limit exceeded' o X-RateLimit-Limit-Minute
+cloudflare/ps1 -> exit 2 | RESULTADO: 429 de otro proxy (Cloudflare/Render), no de Kong: falta 'API rate limit exceeded' o X-RateLimit-Limit-Minute
+kong/sh        -> exit 0 | RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+kong/ps1       -> exit 0 | RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+siempre200/sh  -> exit 1 | RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+siempre200/ps1 -> exit 1 | RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+# cloudflare: 429 text/html "Just a moment..." (como el desafio real de Cloudflare); kong: 429 con el cuerpo y la cabecera del plugin.
+
+===== 2) Kong real en Render (2026-11-15 23:21 UTC) =====
+PS> .\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com -SslNoRevoke
+Peticion 1: 200
+Peticion 2: 200
+Peticion 3: 200
+Peticion 4: 200
+Peticion 5: 200
+Peticion 6: 429
+HTTP/1.1 429 Too Many Requests
+x-ratelimit-limit-minute: 5
+x-ratelimit-remaining-minute: 0
+x-render-origin-server: kong/3.6.1
+{
+  "message":"API rate limit exceeded",
+  "request_id":"0a76997477905d546abf664ba06fa405"
+}
+RESULTADO: OK, Kong devolvio 429 (API rate limit exceeded) en la peticion 6
+exit=0
+
+# El script bash contra Kong real se valida en el job "kong" del CI (Linux).
