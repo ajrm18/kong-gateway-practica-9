@@ -16,3 +16,9 @@ services:
         config:
           minute: 5
           policy: local
+      # Paso 5: trazabilidad. Valor fijo, tal cual la guia (ver README: mejora opcional con el plugin correlation-id).
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Correlation-Id:kong-generado"
