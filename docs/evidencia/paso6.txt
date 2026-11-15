@@ -1,0 +1,28 @@
+# Paso 6: con y sin Gateway
+
+$ docker compose stop kong
+ Container kong-gateway Stopping 
+ Container kong-gateway Stopped 
+
+$ docker compose ps -a
+NAME           IMAGE      COMMAND                  SERVICE   CREATED          STATUS                       PORTS
+kong-gateway   kong:3.6   "/docker-entrypoint.…"   kong      14 minutes ago   Exited (137) 3 seconds ago   
+
+$ curl.exe -s -w "\nHTTP %{http_code}\n" http://localhost:3000/api/v1/productos/1   (directo: responde)
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null}
+HTTP 200
+exit=0
+
+$ curl.exe -s -w "\nHTTP %{http_code}\n" http://localhost:8000/productos/1   (via Kong: falla)
+curl: (7) Failed to connect to localhost:8000 after 2 ms: Could not connect to server
+
+HTTP 000
+exit=7
+
+$ docker compose start kong
+ Container kong-gateway Starting 
+ Container kong-gateway Started 
+
+$ curl.exe -s -w "\nHTTP %{http_code}\n" http://localhost:8000/productos/1   (Kong de nuevo arriba)
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null}
+HTTP 200
