@@ -20,7 +20,8 @@ Poner **Kong Gateway 3.6 en modo DB-less** (configuración declarativa en YAML) 
 | Kong (health check) | https://kong-gateway-p9.onrender.com/kong-health |
 | BFF directo (`/health`) | https://bff-productos-p9.onrender.com/health |
 | Swagger de la API de Productos | https://apisemana2.onrender.com/api/docs |
-| Estado del CI | https://github.com/ajrm18/kong-gateway-practica-9/actions/workflows/ci.yml |
+| Estado del CI | https://github.com/ajrm18/kong-gateway-practica-9/actions/workflows/ci.yml (en verde: jobs `bff` y `kong`, este último con la prueba real del 429) |
+| Auditoría | [`Auditoria_Practica9.md`](Auditoria_Practica9.md): 0 críticos, 0 altos, 4 medios, 10 bajos, 7 informativos |
 
 > **Render Free duerme los servicios tras 15 minutos sin tráfico.** Antes de la demo hay que abrir, en este orden, https://apisemana2.onrender.com/api/v1/health, https://bff-productos-p9.onrender.com/health y https://kong-gateway-p9.onrender.com/kong-health, y esperar a que respondan (puede tardar 1 minuto cada uno). El BFF usa un timeout de 8 s por fuente: si la API REST todavía está despertando, la primera llamada a `/productos-completos/:id` puede devolver 502; la segunda ya responde.
 
@@ -164,6 +165,10 @@ El valor fijo no permite distinguir una petición de otra, y `request-transforme
   - `bff`: `npm ci`, `npm run lint` (`--deny-warnings`), `npm run build`, `npm test`, `npm run test:e2e`, `npm audit --omit=dev --audit-level=high` (Node 24).
   - `kong`: `kong config parse` de `kong.yml` y `kong.cloud.yml` con `kong:3.6`; levanta Kong con Compose delante de una API simulada y ejecuta `probar-rate-limit.sh` (debe salir el 429).
 - **CD**: `render.yaml` con `autoDeployTrigger: checksPass`: Render despliega solo si el CI está en verde.
+
+## Auditoría
+
+[`Auditoria_Practica9.md`](Auditoria_Practica9.md), sobre clones limpios de `82f4df7` y `apisemana2@aab0a63`. Hallazgos Medios: bypass del Gateway por las URLs públicas de Render (P9-01), el script de rate-limit acepta un 429 de Cloudflare (P9-02), el GraphQL público no entrega datos (P9-03) y `/productos-completos` sin rate-limit (P9-04).
 
 ## Declaración de uso de IA
 
