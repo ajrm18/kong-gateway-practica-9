@@ -1,23 +1,29 @@
 # Prueba del rate-limiting de Kong (Semana 8, Paso 4).
 # Uso: .\scripts\probar-rate-limit.ps1 [-BaseUrl http://localhost:8000] [-Peticiones 6]
-#   .\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com
+#   .\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com [-SslNoRevoke]
 # Espera 200 en las primeras 5 y 429 a partir de la 6.a (minute: 5).
 # Usa curl.exe: en PowerShell "curl" es un alias de Invoke-WebRequest.
 param(
   [string]$BaseUrl = "http://localhost:8000",
   [int]$Peticiones = 6,
-  [int]$TimeoutSeg = 120
+  [int]$TimeoutSeg = 120,
+  # Solo para equipos donde el antivirus impide a schannel comprobar la revocacion
+  # (curl: (35) CRYPT_E_NO_REVOCATION_CHECK). No desactiva la validacion del certificado.
+  [switch]$SslNoRevoke
 )
+
+$extra = @()
+if ($SslNoRevoke) { $extra += "--ssl-no-revoke" }
 
 $url = "$($BaseUrl.TrimEnd('/'))/productos"
 Write-Output "URL: $url  (peticiones: $Peticiones)"
 foreach ($i in 1..($Peticiones - 1)) {
-  $codigo = & curl.exe -s -o NUL -m $TimeoutSeg -w "%{http_code}" $url
+  $codigo = & curl.exe @extra -s -o NUL -m $TimeoutSeg -w "%{http_code}" $url
   Write-Output "Peticion ${i}: $codigo"
 }
 
 # La ultima peticion se muestra completa (estado, cabeceras X-RateLimit-* / Retry-After y cuerpo).
-$salida = (& curl.exe -s -i -m $TimeoutSeg -w "`n__CODIGO__%{http_code}" $url) -join "`n"
+$salida = (& curl.exe @extra -s -i -m $TimeoutSeg -w "`n__CODIGO__%{http_code}" $url) -join "`n"
 $partes = $salida -split "__CODIGO__"
 $ultimo = $partes[-1].Trim()
 Write-Output "Peticion ${Peticiones}: $ultimo"

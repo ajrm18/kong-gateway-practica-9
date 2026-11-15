@@ -1,0 +1,151 @@
+﻿# Pruebas contra Render (Free, Oregon). Fecha UTC: 2026-11-15 22:15:30
+# curl.exe con --ssl-no-revoke: en este equipo Kaspersky impide a schannel comprobar la revocacion (curl: (35) CRYPT_E_NO_REVOCATION_CHECK).
+
+===== 0) Despertar los servicios (cold start de Render Free) =====
+https://apisemana2.onrender.com/api/v1/health : {"status":"ok","baseDatos":"conectada"} -> HTTP 200 (0 s)
+https://bff-productos-p9.onrender.com/health : {"status":"ok","servicio":"bff-productos"} -> HTTP 200 (0 s)
+https://kong-gateway-p9.onrender.com/kong-health : {"message":"kong ok"} -> HTTP 200 (0 s)
+
+===== 1) GET https://kong-gateway-p9.onrender.com/productos =====
+$ curl.exe -i https://kong-gateway-p9.onrender.com/productos
+HTTP/1.1 200 OK
+Date: Sun, 15 Nov 2026 22:15:32 GMT
+Content-Type: application/json; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: DYNAMIC
+etag: W/"e7-bm+YtYSxeeGIVOKmFdiaTL4BK0c"
+ratelimit-limit: 5
+ratelimit-remaining: 4
+ratelimit-reset: 28
+rndr-id: 835fbe27-bf39-4fbf
+Server: cloudflare
+vary: Accept-Encoding
+via: kong/3.6.1
+x-content-type-options: nosniff
+x-kong-proxy-latency: 44
+x-kong-request-id: a92eaf02c90dcb7dadc23d3bee59cb4d
+x-kong-upstream-latency: 91
+x-ratelimit-limit-minute: 5
+x-ratelimit-remaining-minute: 4
+x-render-origin-server: cloudflare
+CF-RAY: a5b19d789844b9c0-GYE
+
+[{"id":3,"nombre":"Teclado mecanico RGB","precio":55,"categoria":"electronica"},{"id":4,"nombre":"Mouse inalambrico","precio":60,"categoria":"electronica"},{"id":5,"nombre":"Monitor 24 pulgadas","precio":189,"categoria":"oficina"}]
+
+===== 2) GET https://kong-gateway-p9.onrender.com/productos/3 y /productos/1 (en Neon no existe el id 1) =====
+$ curl.exe -i https://kong-gateway-p9.onrender.com/productos/3
+HTTP/1.1 200 OK
+Date: Sun, 15 Nov 2026 22:16:33 GMT
+Content-Type: application/json; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: DYNAMIC
+etag: W/"4e-eNY2ERBlhKgM4IDNSV8FaGNggMc"
+ratelimit-limit: 5
+ratelimit-remaining: 4
+ratelimit-reset: 27
+rndr-id: 2a69880e-939b-4728
+Server: cloudflare
+vary: Accept-Encoding
+via: kong/3.6.1
+x-content-type-options: nosniff
+x-kong-proxy-latency: 1
+x-kong-request-id: 0f592955dbe862211d46730c040b314a
+x-kong-upstream-latency: 84
+x-ratelimit-limit-minute: 5
+x-ratelimit-remaining-minute: 4
+x-render-origin-server: cloudflare
+CF-RAY: a5b19ef9dea56ae7-GYE
+
+{"id":3,"nombre":"Teclado mecanico RGB","precio":55,"categoria":"electronica"}
+
+$ curl.exe -s -w ' -> HTTP %{http_code}' https://kong-gateway-p9.onrender.com/productos/1
+{"message":"Producto 1 no existe","error":"Not Found","statusCode":404} -> HTTP 404
+
+===== 3) GET https://kong-gateway-p9.onrender.com/productos-completos/3 (via Kong -> BFF -> REST + GraphQL) =====
+$ curl.exe -i https://kong-gateway-p9.onrender.com/productos-completos/3
+HTTP/1.1 200 OK
+Date: Sun, 15 Nov 2026 22:16:34 GMT
+Content-Type: application/json; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: DYNAMIC
+content-security-policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+etag: W/"d8-n2HICZJXfT3unkSRTKFBtZ/lhd0"
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+rndr-id: 3f346ad6-0c0b-4a2a
+Server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+vary: Accept-Encoding
+via: kong/3.6.1
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-kong-proxy-latency: 42
+x-kong-request-id: ffa5222e8259430d732a240b79abc313
+x-kong-upstream-latency: 339
+x-permitted-cross-domain-policies: none
+x-render-origin-server: cloudflare
+x-xss-protection: 0
+CF-RAY: a5b19efeead056d0-GYE
+
+{"id":3,"nombre":"Teclado mecanico RGB","precio":55,"graphql":null,"fuentes":{"rest":"ok","graphql":"no-disponible"},"fuente":"aggregator","correlationId":"kong-generado","avisos":["GraphQL no disponible: HTTP 429"]}
+
+$ curl.exe -s -w ' -> HTTP %{http_code}' https://kong-gateway-p9.onrender.com/productos-completos/1
+{"statusCode":404,"message":"El producto 1 no existe en la API REST","fuente":"rest"} -> HTTP 404
+$ curl.exe -s -w ' -> HTTP %{http_code}' https://kong-gateway-p9.onrender.com/productos-completos/abc
+{"message":"Validation failed (numeric string is expected)","error":"Bad Request","statusCode":400} -> HTTP 400
+
+===== 4) Admin API en la nube (KONG_ADMIN_LISTEN=off) =====
+$ curl.exe -s -w ' -> HTTP %{http_code}' https://kong-gateway-p9.onrender.com/services
+{   "message":"no Route matched with those values",   "request_id":"54e8c370395a0e2b36fd877c1541533e" } -> HTTP 404
+$ curl.exe -s -w ' -> HTTP %{http_code}' https://kong-gateway-p9.onrender.com/status
+{   "message":"no Route matched with those values",   "request_id":"1b0ffb08a2f2602830f9fc692a68245e" } -> HTTP 404
+
+===== 5) Rate-limit en la nube (ventana de minuto nueva) =====
+PS> .\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com -SslNoRevoke
+URL: https://kong-gateway-p9.onrender.com/productos  (peticiones: 6)
+Peticion 1: 200
+Peticion 2: 200
+Peticion 3: 200
+Peticion 4: 200
+Peticion 5: 200
+Peticion 6: 200
+
+Peticion 6 completa (curl.exe -i):
+HTTP/1.1 200 OK
+Date: Sun, 15 Nov 2026 22:17:05 GMT
+Content-Type: application/json; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: DYNAMIC
+etag: W/"e7-bm+YtYSxeeGIVOKmFdiaTL4BK0c"
+ratelimit-limit: 5
+ratelimit-remaining: 4
+ratelimit-reset: 55
+rndr-id: af324a09-f083-4071
+Server: cloudflare
+vary: Accept-Encoding
+via: kong/3.6.1
+x-content-type-options: nosniff
+x-kong-proxy-latency: 1
+x-kong-request-id: 4cbf71763353d258e58be7654e639c64
+x-kong-upstream-latency: 45
+x-ratelimit-limit-minute: 5
+x-ratelimit-remaining-minute: 4
+x-render-origin-server: cloudflare
+CF-RAY: a5b19fbfc97683fe-GYE
+
+[{"id":3,"nombre":"Teclado mecanico RGB","precio":55,"categoria":"electronica"},{"id":4,"nombre":"Mouse inalambrico","precio":60,"categoria":"electronica"},{"id":5,"nombre":"Monitor 24 pulgadas","precio":189,"categoria":"oficina"}]
+
+RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+(codigo de salida: 1)
