@@ -52,8 +52,9 @@ jobs:
         run: bash -n scripts/probar-rate-limit.sh
       - name: API de productos simulada en el puerto 3000
         run: |
-          node -e "require('http').createServer((q,s)=>{s.setHeader('Content-Type','application/json');s.end(JSON.stringify(q.url==='/api/v1/productos'?[{id:1,nombre:'X',precio:1}]:{id:1,nombre:'X',precio:1,correlationId:q.headers['x-correlation-id']??null}))}).listen(3000,'0.0.0.0')" &
-          sleep 1 && curl -sf http://localhost:3000/api/v1/productos
+          nohup node -e "require('http').createServer((q,s)=>{s.setHeader('Content-Type','application/json');s.end(JSON.stringify(q.url==='/api/v1/productos'?[{id:1,nombre:'X',precio:1}]:{id:1,nombre:'X',precio:1,correlationId:q.headers['x-correlation-id']??null}))}).listen(3000,'0.0.0.0')" > api-simulada.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/api/v1/productos && exit 0; sleep 1; done
+          cat api-simulada.log; exit 1
       - name: Levantar Kong con docker compose
         working-directory: kong-gateway
         run: |
