@@ -22,3 +22,20 @@ services:
           add:
             headers:
               - "X-Correlation-Id:kong-generado"
+
+  # Paso 7 (reto): Aggregator/BFF que combina la API REST y la API GraphQL.
+  - name: bff-productos-service
+    url: http://host.docker.internal:3001
+    routes:
+      - name: productos-completos-route
+        paths:
+          - /productos-completos
+        # Correccion de la guia: sin esto Kong reenviaria "/productos-completos/1" como "/1".
+        strip_path: false
+    plugins:
+      # Extension: el mismo header para que el BFF lo reciba y lo reenvie a REST y GraphQL.
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Correlation-Id:kong-generado"

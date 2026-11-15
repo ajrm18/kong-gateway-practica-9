@@ -1,0 +1,127 @@
+# Paso 7 (reto): Aggregator/BFF nestjs-bff-productos detras de Kong
+
+===== Admin API: services y routes =====
+productos-route              ["/productos"] strip_path=false
+productos-completos-route    ["/productos-completos"] strip_path=false
+bff-productos-service        http://host.docker.internal:3001
+productos-service            http://host.docker.internal:3000/api/v1
+
+===== 1) VIA KONG: GET /productos-completos/1 (debe ir al BFF y no a productos-service) =====
+$ curl.exe -i http://localhost:8000/productos-completos/1
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 310
+Connection: keep-alive
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+ETag: W/"136-nWZ5g3D4mzZABEo6Er0Y9fRqnkg"
+Date: Sun, 15 Nov 2026 21:01:11 GMT
+X-Kong-Upstream-Latency: 1727
+X-Kong-Proxy-Latency: 5
+Via: kong/3.6.1
+X-Kong-Request-Id: c9f1e251f2403b35d35ab352747f0444
+
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"fuente":"aggregator","correlationId":"kong-generado","graphql":null,"fuentes":{"rest":"ok","graphql":"no-disponible"},"avisos":["GraphQL no disponible: GraphQL respondio sin datos: Request failed with status code 429; Request failed with status code 429"]}
+
+# Cuerpo formateado:
+{
+  "id": 1,
+  "nombre": "Teclado mecánico RGB",
+  "precio": 55,
+  "fuente": "aggregator",
+  "correlationId": "kong-generado",
+  "graphql": null,
+  "fuentes": {
+    "rest": "ok",
+    "graphql": "no-disponible"
+  },
+  "avisos": [
+    "GraphQL no disponible: GraphQL respondio sin datos: Request failed with status code 429; Request failed with status code 429"
+  ]
+}
+
+===== 2) Errores controlados via Kong =====
+$ curl.exe -s -w ' -> HTTP %{http_code}' http://localhost:8000/productos-completos/abc
+{"message":"Validation failed (numeric string is expected)","error":"Bad Request","statusCode":400} -> HTTP 400
+$ curl.exe -s -w ' -> HTTP %{http_code}' http://localhost:8000/productos-completos/0
+{"message":"El id debe ser un entero entre 1 y 2147483647","error":"Bad Request","statusCode":400} -> HTTP 400
+$ curl.exe -s -w ' -> HTTP %{http_code}' http://localhost:8000/productos-completos/999
+{"statusCode":404,"message":"El producto 999 no existe en la API REST","fuente":"rest"} -> HTTP 404
+
+===== 3) Camino "graphql: ok" con un GraphQL SIMULADO local (scripts/graphql-simulado.js) =====
+# BFF reiniciado con GRAPHQL_URL=http://localhost:4000/graphql (el GraphQL real responde errores 429, ver punto 1).
+$ curl.exe -s http://localhost:8000/productos-completos/4
+{
+  "id": 4,
+  "nombre": "Monitor 24 pulgadas",
+  "precio": 189,
+  "fuente": "aggregator",
+  "correlationId": "kong-generado",
+  "graphql": {
+    "coincide": true,
+    "alternativasMasBaratasOIguales": [
+      {
+        "id": 5,
+        "nombre": "Auriculares",
+        "precio": 10
+      },
+      {
+        "id": 6,
+        "nombre": "Auriculares",
+        "precio": 10
+      },
+      {
+        "id": 1,
+        "nombre": "Teclado mecánico RGB",
+        "precio": 55
+      },
+      {
+        "id": 3,
+        "nombre": "Mouse inalámbrico",
+        "precio": 60
+      }
+    ]
+  },
+  "fuentes": {
+    "rest": "ok",
+    "graphql": "ok"
+  }
+}
+
+# Log del GraphQL simulado (recibe el X-Correlation-Id reenviado por el BFF):
+graphql-simulado: id=4 precioMaximo=189 X-Correlation-Id=kong-generado
+
+===== 4) GraphQL caido (GRAPHQL_URL=http://localhost:4000/graphql con el puerto cerrado) =====
+$ curl.exe -s -w "\nHTTP %{http_code}" http://localhost:8000/productos-completos/1
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"graphql":null,"fuentes":{"rest":"ok","graphql":"no-disponible"},"fuente":"aggregator","correlationId":"kong-generado","avisos":["GraphQL no disponible: ECONNREFUSED"]}
+HTTP 200
+# Log del BFF (una linea, sin pila):
+[Nest] 13284  - 15/11/2026, 16:05:06    WARN [ProductosCompletosService] GraphQL no disponible: ECONNREFUSED [correlationId=kong-generado]
+
+===== 5) REST caido (PRODUCTOS_API_URL=http://localhost:3999/api/v1, puerto cerrado) -> 502, nunca 500 =====
+$ curl.exe -s -w "\nHTTP %{http_code}" http://localhost:8000/productos-completos/1
+{"statusCode":502,"message":"La API REST de productos no esta disponible: ECONNREFUSED","fuente":"rest"}
+HTTP 502
+# Log del BFF:
+[Nest] 11720  - 15/11/2026, 16:06:28   ERROR [ProductosCompletosService] API REST no disponible (http://localhost:3999/api/v1/productos/1): ECONNREFUSED [correlationId=kong-generado]
+
+===== 6) Kong elige la ruta mas larga: /productos sigue yendo a productos-service =====
+$ curl.exe -s -i http://localhost:8000/productos/1 | grep -E "^HTTP|X-RateLimit-Limit-Minute|^{"
+HTTP/1.1 200 OK
+X-RateLimit-Limit-Minute: 5
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"categoria":null}
+$ curl.exe -s -i http://localhost:8000/productos-completos/1 | grep -E "^HTTP|X-RateLimit|fuente"   (cuerpo recortado tras correlationId)
+HTTP/1.1 200 OK
+{"id":1,"nombre":"Teclado mecánico RGB","precio":55,"graphql":null,"fuentes":{"rest":"ok","graphql":"no-disponible"},"fuente":"aggregator","correlationId":"kong-generado"
+# /productos/1 trae X-RateLimit-* (plugin de productos-service); /productos-completos/1 no los trae y responde el BFF ("fuente":"aggregator").
+# Kong ordena las routes por longitud de prefijo: /productos-completos (19) gana a /productos (10).
