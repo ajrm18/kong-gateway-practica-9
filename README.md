@@ -15,13 +15,14 @@ Poner **Kong Gateway 3.6 en modo DB-less** (configuración declarativa en YAML) 
 | Qué | URL |
 |---|---|
 | Repositorio | https://github.com/ajrm18/kong-gateway-practica-9 |
-| Kong → API de Productos | _(se completa tras el despliegue)_ |
-| Kong → BFF | _(se completa tras el despliegue)_ |
-| BFF directo (`/health`) | _(se completa tras el despliegue)_ |
+| Kong → API de Productos | https://kong-gateway-p9.onrender.com/productos · https://kong-gateway-p9.onrender.com/productos/3 (en Neon no existe el id 1: `/productos/1` → 404) |
+| Kong → BFF | https://kong-gateway-p9.onrender.com/productos-completos/3 |
+| Kong (health check) | https://kong-gateway-p9.onrender.com/kong-health |
+| BFF directo (`/health`) | https://bff-productos-p9.onrender.com/health |
 | Swagger de la API de Productos | https://apisemana2.onrender.com/api/docs |
 | Estado del CI | https://github.com/ajrm18/kong-gateway-practica-9/actions/workflows/ci.yml |
 
-> **Render Free duerme los servicios tras 15 minutos sin tráfico.** Antes de la demo hay que abrir, en este orden, `https://apisemana2.onrender.com/api/v1/health`, el `/health` del BFF y el `/kong-health` de Kong, y esperar a que respondan (puede tardar 1 minuto cada uno). El BFF usa un timeout de 8 s por fuente: si la API REST todavía está despertando, la primera llamada a `/productos-completos/:id` puede devolver 502; la segunda ya responde.
+> **Render Free duerme los servicios tras 15 minutos sin tráfico.** Antes de la demo hay que abrir, en este orden, https://apisemana2.onrender.com/api/v1/health, https://bff-productos-p9.onrender.com/health y https://kong-gateway-p9.onrender.com/kong-health, y esperar a que respondan (puede tardar 1 minuto cada uno). El BFF usa un timeout de 8 s por fuente: si la API REST todavía está despertando, la primera llamada a `/productos-completos/:id` puede devolver 502; la segunda ya responde.
 
 ## Arquitectura
 
@@ -98,7 +99,7 @@ En PowerShell `curl` es un alias de `Invoke-WebRequest`, y `for i in ...` es sin
 | Vía Kong | `curl -i http://localhost:8000/productos/1` | `curl.exe -i http://localhost:8000/productos/1` |
 | 6 peticiones (429 en la 6.ª) | `for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/productos; done` | ``1..6 \| % { curl.exe -s -o NUL -w "%{http_code}`n" http://localhost:8000/productos }`` |
 | Script del rate-limit | `./scripts/probar-rate-limit.sh http://localhost:8000` | `.\scripts\probar-rate-limit.ps1 -BaseUrl http://localhost:8000` |
-| Script en la nube | `./scripts/probar-rate-limit.sh https://<kong>.onrender.com` | `.\scripts\probar-rate-limit.ps1 -BaseUrl https://<kong>.onrender.com` |
+| Script en la nube | `./scripts/probar-rate-limit.sh https://kong-gateway-p9.onrender.com` | `.\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com` (agregar `-SslNoRevoke` si `curl.exe` falla con `CRYPT_E_NO_REVOCATION_CHECK`, por ejemplo con Kaspersky) |
 | BFF vía Kong | `curl -s http://localhost:8000/productos-completos/1` | `curl.exe -s http://localhost:8000/productos-completos/1` |
 | Con y sin Gateway | `docker compose stop kong` → 3000 responde, 8000 falla → `docker compose start kong` | igual |
 
@@ -115,7 +116,8 @@ En PowerShell `curl` es un alias de `Invoke-WebRequest`, y `for i in ...` es sin
 | 6 · Con y sin Gateway | `paso6.txt` | Kong detenido: 3000 → 200, 8000 → `Failed to connect` |
 | 7 · Aggregator/BFF | `paso7-bff.txt` | Kong elige `/productos-completos`; 200 combinado, 400, 404, 502, GraphQL caído, `X-Correlation-Id` hasta REST y GraphQL |
 | Latencia | `latencia-crudo.txt` | 20 peticiones directas y 20 vía Kong (datos de la bitácora) |
-| Nube | `nube.txt` | Mismas pruebas contra la URL pública de Kong |
+| Nube | `nube.txt` | Mismas pruebas contra la URL pública de Kong: 200, 404, BFF, Admin API cerrada, **429**, intento de falsificar `X-Forwarded-For` y bypass directo |
+| Nube (diagnóstico) | `nube-diagnostico-ip.txt` | Por qué con `X-Forwarded-For` no salía el 429 en Render y por qué se usa `CF-Connecting-IP` |
 
 ## Errores de la guía corregidos
 
