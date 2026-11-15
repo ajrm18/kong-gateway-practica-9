@@ -52,10 +52,14 @@ services:
       - key: KONG_MEM_CACHE_SIZE
         value: 64m
       # Para que el rate-limit cuente por IP del cliente y no por la del proxy de Render.
+      # Render pasa por Cloudflare: X-Forwarded-For llega como "cliente, IP de Cloudflare, 10.24.x.x".
+      # Con X-Forwarded-For Nginx toma la ultima (proxy interno, distinta en cada peticion) y el 429
+      # nunca aparece; la primera la puede falsificar el cliente. CF-Connecting-IP la fija Cloudflare
+      # (rechaza con 403 a un cliente que la envie). Ver docs/evidencia/nube.txt.
       - key: KONG_TRUSTED_IPS
         value: 0.0.0.0/0,::/0
       - key: KONG_REAL_IP_HEADER
-        value: X-Forwarded-For
+        value: CF-Connecting-IP
       - key: KONG_PROXY_ACCESS_LOG
         value: /dev/stdout
       - key: KONG_PROXY_ERROR_LOG

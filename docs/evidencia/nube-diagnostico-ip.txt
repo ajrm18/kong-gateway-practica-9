@@ -1,0 +1,38 @@
+# Diagnostico: el rate-limit no daba 429 en Render con KONG_REAL_IP_HEADER=X-Forwarded-For
+# Fecha: 15/11/2026, 22:15-22:20 UTC. Kong desplegado: kong-gateway-p9 (Render Free, Oregon).
+
+===== 1) Sintoma (commit 0eb8799, KONG_REAL_IP_HEADER=X-Forwarded-For) =====
+PS> .\scripts\probar-rate-limit.ps1 -BaseUrl https://kong-gateway-p9.onrender.com -SslNoRevoke
+Peticion 1: 200
+Peticion 2: 200
+Peticion 3: 200
+Peticion 4: 200
+Peticion 5: 200
+Peticion 6: 200
+(en las 6: x-ratelimit-remaining-minute: 4 -> cada peticion se cuenta con un identificador distinto)
+RESULTADO: no se vio 429 en la peticion 6 (ultimo codigo: 200)
+
+===== 2) Cabeceras que recibe Kong (route temporal /kong-eco, request-termination echo: true, commit 06a6167) =====
+---- peticion normal
+  x-forwarded-for: 157.100.x.x, 104.22.160.66, 10.24.23.142
+  true-client-ip: 157.100.x.x
+  cf-connecting-ip: 157.100.x.x
+---- peticion con "X-Forwarded-For: 1.2.3.4" (intento de falsificacion)
+  x-forwarded-for: 1.2.3.4,157.100.x.x, 104.22.160.10, 10.24.148.160
+  true-client-ip: 157.100.x.x
+  cf-connecting-ip: 157.100.x.x
+---- peticion con "True-Client-IP: 8.8.8.8"
+  true-client-ip: 157.100.x.x      (Cloudflare lo sobrescribe)
+  cf-connecting-ip: 157.100.x.x
+---- peticion con "CF-Connecting-IP: 9.9.9.9"
+HTTP/1.1 403 Forbidden                (Cloudflare rechaza la peticion)
+Server: cloudflare
+
+===== 3) Conclusion =====
+- real_ip_recursive esta apagado, asi que Nginx toma la ULTIMA IP de X-Forwarded-For: el proxy interno
+  de Render (10.24.x.x), distinto en cada peticion -> el contador por IP nunca llega a 5.
+- La PRIMERA IP de X-Forwarded-For la controla el cliente (1.2.3.4): usarla (real_ip_recursive on)
+  permitiria saltarse el limite cambiando el header.
+- CF-Connecting-IP lo fija Cloudflare con la IP real y no se puede falsificar (403).
+- Correccion: KONG_REAL_IP_HEADER=CF-Connecting-IP en render.yaml. La route /kong-eco se retiro.
+# La IP publica del equipo de pruebas se enmascaro (157.100.x.x).

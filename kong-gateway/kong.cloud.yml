@@ -51,15 +51,3 @@ services:
           status_code: 200
           message: "kong ok"
 
-  # TEMPORAL (diagnostico del rate-limit en Render): devuelve las cabeceras que recibe Kong. Se retira despues.
-  - name: kong-eco
-    url: http://127.0.0.1:65535
-    routes:
-      - name: kong-eco-route
-        paths:
-          - /kong-eco
-    plugins:
-      - name: request-termination
-        config:
-          status_code: 200
-          echo: true
