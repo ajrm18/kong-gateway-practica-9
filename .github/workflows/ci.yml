@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bff:
+    name: BFF (npm ci, lint, build, test, e2e)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: nestjs-bff-productos
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          # Misma version mayor que Render (NODE_VERSION=24 en render.yaml).
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: nestjs-bff-productos/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:e2e
+      - name: Dependencias de produccion sin vulnerabilidades altas
+        run: npm audit --omit=dev --audit-level=high
+
+  kong:
+    name: Kong (config parse + prueba del rate-limit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validar kong.yml
+        run: docker run --rm -e KONG_DATABASE=off -v "$PWD/kong-gateway:/kong:ro" kong:3.6 kong config parse /kong/kong.yml
+      - name: Validar kong.cloud.yml
+        run: docker run --rm -e KONG_DATABASE=off -v "$PWD/kong-gateway:/kong:ro" kong:3.6 kong config parse /kong/kong.cloud.yml
+      - name: Sintaxis de los scripts bash
+        run: bash -n scripts/probar-rate-limit.sh
+      - name: API de productos simulada en el puerto 3000
+        run: |
+          node -e "require('http').createServer((q,s)=>{s.setHeader('Content-Type','application/json');s.end(JSON.stringify(q.url==='/api/v1/productos'?[{id:1,nombre:'X',precio:1}]:{id:1,nombre:'X',precio:1,correlationId:q.headers['x-correlation-id']??null}))}).listen(3000,'0.0.0.0')" &
+          sleep 1 && curl -sf http://localhost:3000/api/v1/productos
+      - name: Levantar Kong con docker compose
+        working-directory: kong-gateway
+        run: |
+          docker compose up -d
+          for i in $(seq 1 30); do curl -sf http://localhost:8001/status >/dev/null && break; sleep 2; done
+          curl -sf http://localhost:8001/status >/dev/null
+      - name: Proxy y X-Correlation-Id
+        run: curl -sf http://localhost:8000/productos/1 | grep -q '"correlationId":"kong-generado"'
+      - name: Rate-limit (5 x 200 y 429 en la 6.a)
+        run: |
+          # Reinicia Kong para empezar con el contador en cero y evita el cambio de minuto.
+          (cd kong-gateway && docker compose restart kong)
+          for i in $(seq 1 30); do curl -sf http://localhost:8001/status >/dev/null && break; sleep 2; done
+          while [ "$(date -u +%S)" -gt 45 ]; do sleep 1; done
+          bash scripts/probar-rate-limit.sh http://localhost:8000
+      - name: Logs de Kong si algo falla
+        if: failure()
+        working-directory: kong-gateway
+        run: docker compose logs kong

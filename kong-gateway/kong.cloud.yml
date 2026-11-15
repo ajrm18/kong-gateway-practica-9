@@ -1,0 +1,52 @@
+# Configuracion declarativa para la NUBE (Render). Misma estructura que kong.yml, con las URLs publicas.
+# read_timeout de 90 s: Render Free duerme los servicios y el primer request tarda en despertarlos.
+_format_version: "3.0"
+
+services:
+  - name: productos-service
+    # API de Productos del repo ajrm18/apisemana2 (prefijo global /api/v1).
+    url: https://apisemana2.onrender.com/api/v1
+    read_timeout: 90000
+    routes:
+      - name: productos-route
+        paths:
+          - /productos
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 5
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Correlation-Id:kong-generado"
+
+  - name: bff-productos-service
+    url: https://bff-productos-p9.onrender.com
+    read_timeout: 90000
+    routes:
+      - name: productos-completos-route
+        paths:
+          - /productos-completos
+        strip_path: false
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Correlation-Id:kong-generado"
+
+  # Health check de Render para Kong: responde el propio Kong (sin upstream ni rate-limit).
+  - name: kong-salud
+    url: http://127.0.0.1:65535
+    routes:
+      - name: kong-salud-route
+        paths:
+          - /kong-health
+    plugins:
+      - name: request-termination
+        config:
+          status_code: 200
+          message: "kong ok"

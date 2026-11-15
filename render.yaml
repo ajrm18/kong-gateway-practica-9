@@ -1,0 +1,62 @@
+# Blueprint de Render (Semana 8): BFF + Kong Gateway.
+# La API de Productos ya existe como servicio aparte (apisemana2) y no se define aqui.
+# autoDeployTrigger: checksPass -> Render solo despliega cuando el CI de GitHub Actions esta en verde.
+services:
+  - type: web
+    name: bff-productos-p9
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: nestjs-bff-productos
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Misma version mayor que el CI (.github/workflows/ci.yml).
+      - key: NODE_VERSION
+        value: "24"
+      - key: PRODUCTOS_API_URL
+        value: https://apisemana2.onrender.com/api/v1
+      - key: GRAPHQL_URL
+        value: https://nestjs-productos-graphql-tgv7.onrender.com/graphql
+      - key: FUENTE_TIMEOUT_MS
+        value: "8000"
+
+  - type: web
+    name: kong-gateway-p9
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: kong-gateway
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /kong-health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: KONG_DATABASE
+        value: "off"
+      - key: KONG_DECLARATIVE_CONFIG
+        value: /kong/kong.yml
+      - key: PORT
+        value: "10000"
+      - key: KONG_PROXY_LISTEN
+        value: 0.0.0.0:10000
+      # La Admin API no debe quedar publica.
+      - key: KONG_ADMIN_LISTEN
+        value: "off"
+      - key: KONG_NGINX_WORKER_PROCESSES
+        value: "1"
+      - key: KONG_MEM_CACHE_SIZE
+        value: 64m
+      # Para que el rate-limit cuente por IP del cliente y no por la del proxy de Render.
+      - key: KONG_TRUSTED_IPS
+        value: 0.0.0.0/0,::/0
+      - key: KONG_REAL_IP_HEADER
+        value: X-Forwarded-For
+      - key: KONG_PROXY_ACCESS_LOG
+        value: /dev/stdout
+      - key: KONG_PROXY_ERROR_LOG
+        value: /dev/stderr
